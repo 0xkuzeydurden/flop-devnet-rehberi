@@ -1,0 +1,89 @@
+# Requires a real Linux GPU host with Docker and the NVIDIA container runtime.
+# Populate .env from the official release manifest before starting either service.
+name: flop-devnet-guide
+
+services:
+  inference:
+    image: ${FLOP_BACKEND_IMAGE:?FLOP_BACKEND_IMAGE is required}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    shm_size: "2gb"
+    environment:
+      MODEL_NAME: ${MODEL_NAME:?MODEL_NAME is required}
+      MODEL_HASH: ${MODEL_HASH:?MODEL_HASH is required}
+      MODEL_DIR: /models/checkpoint
+      TOPLOC_PRECISION: ${TOPLOC_PRECISION:?TOPLOC_PRECISION is required}
+      DECODE_POLICY: ${DECODE_POLICY_JSON:?DECODE_POLICY_JSON is required}
+      DECODE_POLICY_HASH: ${DECODE_POLICY_HASH:?DECODE_POLICY_HASH is required}
+      INFERENCE_API_KEY: ${INFERENCE_API_KEY:?INFERENCE_API_KEY is required}
+    volumes:
+      - type: bind
+        source: ${FLOP_CHECKPOINT_DIR:?FLOP_CHECKPOINT_DIR is required}
+        target: /models/checkpoint
+        read_only: true
+        bind:
+          create_host_path: false
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  miner:
+    image: ${FLOP_WORKER_IMAGE:?FLOP_WORKER_IMAGE is required}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      - inference
+    working_dir: /data
+    command: ["--rpc", "${FLOP_RPC:?FLOP_RPC is required}"]
+    environment:
+      MINER_BACKEND: openai
+      OPENAI_BASE_URL: http://inference:8000/v1
+      INFERENCE_API_KEY: ${INFERENCE_API_KEY:?INFERENCE_API_KEY is required}
+      MINER_MODEL: ${MODEL_NAME:?MODEL_NAME is required}
+      OPENROUTER_MODEL_SLUG: ${OPENROUTER_MODEL_SLUG:?OPENROUTER_MODEL_SLUG is required}
+      WORKER_NAME: ${WORKER_NAME:?WORKER_NAME is required}
+      MINER_SIGNER_FILE: /run/flop/miner.seed
+      MINER_ENCLAVE_KEY_FILE: /run/flop/session.seed
+      MODEL_HASH: ${MODEL_HASH:?MODEL_HASH is required}
+      MODEL_PRECISION: ${MODEL_PRECISION:?MODEL_PRECISION is required}
+      MODEL_CHECKPOINT_DIR: /models/checkpoint
+      DECODE_POLICY_HASH: ${DECODE_POLICY_HASH:?DECODE_POLICY_HASH is required}
+      TOPLOC_ENABLED: "1"
+      TOPLOC_PRECISION: ${TOPLOC_PRECISION:?TOPLOC_PRECISION is required}
+      SESSION_PORT: "8645"
+      SESSION_CHAIN: "1"
+      SESSION_AUTH_TOKEN: ${SESSION_AUTH_TOKEN:?SESSION_AUTH_TOKEN is required}
+      SESSION_PUBLIC_HOST: ${SESSION_PUBLIC_HOST:?SESSION_PUBLIC_HOST is required}
+      GHOST_MAILBOX_URL: ${FLOP_MAILBOX_URL:?FLOP_MAILBOX_URL is required}
+      GHOST_KEY_FILE: /data/ghost-x25519.json
+    volumes:
+      - type: bind
+        source: ${FLOP_SIGNER_FILE:?FLOP_SIGNER_FILE is required}
+        target: /run/flop/miner.seed
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${FLOP_ENCLAVE_FILE:?FLOP_ENCLAVE_FILE is required}
+        target: /run/flop/session.seed
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${FLOP_CHECKPOINT_DIR:?FLOP_CHECKPOINT_DIR is required}
+        target: /models/checkpoint
+        read_only: true
+        bind:
+          create_host_path: false
+      - worker_state:/data
+    ports:
+      - "127.0.0.1:8645:8645"
+
+volumes:
+  worker_state:

@@ -1,0 +1,11 @@
+{
+  "network": "devnet",
+  "checked_at": "2026-11-04",
+  "genesis_hash": "0x99c172c095340ace980631f9123544c6bebd4839f3437e463533422d8be2d631",
+  "sources": [
+    "https://rpc.devnet.flop.network",
+    "https://faucet.flop.network/chain",
+    "https://api.flop.network/health"
+  ],
+  "scope": "Reviewed public-service snapshot. A reset requires profile review; this is not a GPU acceptance certificate."
+}
